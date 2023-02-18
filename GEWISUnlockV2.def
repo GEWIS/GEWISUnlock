@@ -1,3 +1,5 @@
+LIBRARY GEWISUnlockV2CredentialProvider.dll
+
 EXPORTS
     DllCanUnloadNow                                 PRIVATE
     DllGetClassObject                               PRIVATE

@@ -1,17 +1,19 @@
 //
-// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-// PARTICULAR PURPOSE.
-//
-// Copyright (c) Microsoft Corporation. All rights reserved.
-//
-// Helper functions for copying parameters and packaging the buffer
-// for GetSerialization.
+// GEWIS, 2020-2023
+// 
+// Previous work by: 
+// - Microsoft Corporation, 2016
+// This code is based on https://github.com/microsoft/Windows-classic-samples/tree/main/Samples/Win7Samples/security/credentialproviders/samplecredentialprovider
+// 
 
 #pragma once
+
+#pragma warning(push)
+#pragma warning(disable: 28251)
 #include <credentialprovider.h>
 #include <ntsecapi.h>
+#pragma warning(pop)
+
 #define SECURITY_WIN32
 #include <security.h>
 #include <intsafe.h>
@@ -19,71 +21,98 @@
 #include <windows.h>
 #include <strsafe.h>
 
+#include <cguid.h>
+#include <atlsecurity.h>
+
 #pragma warning(push)
-#pragma warning(disable : 4995)
+#pragma warning(disable: 4995)
 #include <shlwapi.h>
 #pragma warning(pop)
 
+#pragma warning(push)
+#pragma warning(disable: 28301)
+#include <wincred.h>
+#pragma warning(pop)
+
+
+
 //makes a copy of a field descriptor using CoTaskMemAlloc
 HRESULT FieldDescriptorCoAllocCopy(
-    __in const CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR& rcpfd,
-    __deref_out CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR** ppcpfd
+    _In_ const CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR &rcpfd,
+    _Outptr_result_nullonfailure_ CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR **ppcpfd
     );
 
 //makes a copy of a field descriptor on the normal heap
 HRESULT FieldDescriptorCopy(
-    __in const CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR& rcpfd,
-    __deref_out CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR* pcpfd
+    _In_ const CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR &rcpfd,
+    _Out_ CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR *pcpfd
     );
 
 //creates a UNICODE_STRING from a NULL-terminated string
 HRESULT UnicodeStringInitWithString(
-    __in PWSTR pwz, 
-    __out UNICODE_STRING* pus
+    _In_ PWSTR pwz,
+    _Out_ UNICODE_STRING *pus
     );
 
 //initializes a KERB_INTERACTIVE_UNLOCK_LOGON with weak references to the provided credentials
 HRESULT KerbInteractiveUnlockLogonInit(
-    __in PWSTR pwzDomain,
-    __in PWSTR pwzUsername,
-    __in PWSTR pwzPassword,
-    __in CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus,
-    __out KERB_INTERACTIVE_UNLOCK_LOGON* pkiul
+    _In_ PWSTR pwzDomain,
+    _In_ PWSTR pwzUsername,
+    _In_ PWSTR pwzPassword,
+    _In_ CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus,
+    _Out_ KERB_INTERACTIVE_UNLOCK_LOGON *pkiul
     );
 
 //packages the credentials into the buffer that the system expects
 HRESULT KerbInteractiveUnlockLogonPack(
-    __in const KERB_INTERACTIVE_UNLOCK_LOGON& rkiulIn,
-    __deref_out_bcount(*pcb) BYTE** prgb,
-    __out DWORD* pcb
+    _In_ const KERB_INTERACTIVE_UNLOCK_LOGON &rkiulIn,
+    _Outptr_result_bytebuffer_(*pcb) BYTE **prgb,
+    _Out_ DWORD *pcb
     );
 
 //get the authentication package that will be used for our logon attempt
 HRESULT RetrieveNegotiateAuthPackage(
-    __out ULONG * pulAuthPackage
+    _Out_ ULONG *pulAuthPackage
     );
 
 //encrypt a password (if necessary) and copy it; if not, just copy it
 HRESULT ProtectIfNecessaryAndCopyPassword(
-    __in PCWSTR pwzPassword,
-    __in CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus,
-    __deref_out PWSTR* ppwzProtectedPassword
+    _In_ PCWSTR pwzPassword,
+    _In_ CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus,
+    _Outptr_result_nullonfailure_ PWSTR *ppwzProtectedPassword
     );
 
 HRESULT KerbInteractiveUnlockLogonRepackNative(
-    __in_bcount(cbWow) BYTE* rgbWow,
-    __in DWORD cbWow,
-    __deref_out_bcount(*pcbNative) BYTE** prgbNative,
-    __out DWORD* pcbNative
+    _In_reads_bytes_(cbWow) BYTE *rgbWow,
+    _In_ DWORD cbWow,
+    _Outptr_result_bytebuffer_(*pcbNative) BYTE **prgbNative,
+    _Out_ DWORD *pcbNative
     );
 
 void KerbInteractiveUnlockLogonUnpackInPlace(
-    __inout_bcount(cb) KERB_INTERACTIVE_UNLOCK_LOGON* pkiul,
-    __in DWORD cb
+    _Inout_updates_bytes_(cb) KERB_INTERACTIVE_UNLOCK_LOGON *pkiul,
+    DWORD cb
     );
 
 HRESULT DomainUsernameStringAlloc(
-    __in PCWSTR pwszDomain,
-    __in PCWSTR pwszUsername,
-    __deref_out PWSTR* ppwszDomainUsername
+    _In_ PCWSTR pwszDomain,
+    _In_ PCWSTR pwszUsername,
+    _Outptr_result_nullonfailure_ PWSTR *ppwszDomainUsername
     );
+
+HRESULT SplitDomainAndUsername(
+    _In_ PCWSTR pszQualifiedUserName,
+    _Outptr_result_nullonfailure_ PWSTR *ppszDomain,
+    _Outptr_result_nullonfailure_ PWSTR *ppszUsername
+);
+
+HRESULT FindProcessId(
+    _In_ LPCWSTR processName,
+    _Out_ DWORD *processId
+);
+
+HRESULT GetAuthorizedGroup(
+    _Out_ ATL::CSid *groupSid
+);
+
+bool MultiversRunning();

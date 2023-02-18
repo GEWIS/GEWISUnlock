@@ -1,0 +1,12 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\Credential Providers\{28061982-4040-4040-4040-e0abaacd4af6}]
+@="GEWISUnlockV2CredentialProvider"
+
+[HKEY_CLASSES_ROOT\CLSID\{28061982-4040-4040-4040-e0abaacd4af6}]
+@="GEWISUnlockV2CredentialProvider"
+
+[HKEY_CLASSES_ROOT\CLSID\{28061982-4040-4040-4040-e0abaacd4af6}\InprocServer32]
+@="GEWISUnlockV2CredentialProvider.dll"
+"ThreadingModel"="Apartment"
+

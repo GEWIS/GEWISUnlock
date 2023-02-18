@@ -1,10 +1,6 @@
 #include "Resource.h"
 
-/////////////////////////////////////////////////////////////////////////////
-//
-// Bitmap
-//
-
-IDB_TILE_IMAGE          BITMAP                  "kerstboom.bmp"
-
+// Bitmaps:
+IDB_TILE_IMAGE      BITMAP      DISCARDABLE "tileimage.bmp"
 END
+

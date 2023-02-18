@@ -1,35 +1,33 @@
 //
-// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-// PARTICULAR PURPOSE.
-//
-// Copyright (c) Microsoft Corporation. All rights reserved.
-//
-// Standard dll required functions and class factory implementation.
+// GEWIS, 2020-2023
+// 
+// Previous work by: 
+// - Microsoft Corporation, 2016
+// This code is based on https://github.com/microsoft/Windows-classic-samples/tree/main/Samples/Win7Samples/security/credentialproviders/samplecredentialprovider
+// 
 
 #include <windows.h>
 #include <unknwn.h>
 #include "Dll.h"
 #include "helpers.h"
 
-static LONG g_cRef = 0;   // global dll reference count
+static long g_cRef = 0;   // global dll reference count
 HINSTANCE g_hinst = NULL; // global dll hinstance
 
-extern HRESULT CSample_CreateInstance(__in REFIID riid, __deref_out void** ppv);
-EXTERN_C GUID CLSID_CSample;
+extern HRESULT GEWISUnlock_CreateInstance(__in REFIID riid, __deref_out void** ppv);
+EXTERN_C GUID CLSID_GEWUnlockv2;
 
 class CClassFactory : public IClassFactory
 {
 public:
-    CClassFactory() : _cRef(1) 
+    CClassFactory() : _cRef(1)
     {
     }
 
     // IUnknown
-    IFACEMETHODIMP QueryInterface(__in REFIID riid, __deref_out void **ppv)
+    IFACEMETHODIMP QueryInterface(__in REFIID riid, __deref_out void** ppv)
     {
-        static const QITAB qit[] = 
+        static const QITAB qit[] =
         {
             QITABENT(CClassFactory, IClassFactory),
             { 0 },
@@ -44,19 +42,19 @@ public:
 
     IFACEMETHODIMP_(ULONG) Release()
     {
-        LONG cRef = InterlockedDecrement(&_cRef);
+        long cRef = InterlockedDecrement(&_cRef);
         if (!cRef)
             delete this;
         return cRef;
     }
 
     // IClassFactory
-    IFACEMETHODIMP CreateInstance(__in IUnknown* pUnkOuter, __in REFIID riid, __deref_out void **ppv)
+    IFACEMETHODIMP CreateInstance(__in IUnknown* pUnkOuter, __in REFIID riid, __deref_out void** ppv)
     {
         HRESULT hr;
         if (!pUnkOuter)
         {
-            hr = CSample_CreateInstance(riid, ppv);
+            hr = GEWISUnlock_CreateInstance(riid, ppv);
         }
         else
         {
@@ -86,13 +84,13 @@ private:
     long _cRef;
 };
 
-HRESULT CClassFactory_CreateInstance(__in REFCLSID rclsid, __in REFIID riid, __deref_out void **ppv)
+HRESULT CClassFactory_CreateInstance(__in REFCLSID rclsid, __in REFIID riid, __deref_out void** ppv)
 {
     *ppv = NULL;
 
     HRESULT hr;
 
-    if (CLSID_CSample == rclsid)
+    if (CLSID_GEWUnlockv2 == rclsid)
     {
         CClassFactory* pcf = new CClassFactory();
         if (pcf)
@@ -132,7 +130,7 @@ STDAPI DllGetClassObject(__in REFCLSID rclsid, __in REFIID riid, __deref_out voi
     return CClassFactory_CreateInstance(rclsid, riid, ppv);
 }
 
-STDAPI_(BOOL) DllMain(__in HINSTANCE hinstDll, __in DWORD dwReason, __in void *)
+STDAPI_(BOOL) DllMain(__in HINSTANCE hinstDll, __in DWORD dwReason, __in void*)
 {
     switch (dwReason)
     {
@@ -144,7 +142,7 @@ STDAPI_(BOOL) DllMain(__in HINSTANCE hinstDll, __in DWORD dwReason, __in void *)
     case DLL_THREAD_DETACH:
         break;
     }
-    
+
     g_hinst = hinstDll;
     return TRUE;
 }

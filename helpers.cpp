@@ -1,29 +1,27 @@
 //
-// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-// PARTICULAR PURPOSE.
-//
-// Copyright (c) Microsoft Corporation. All rights reserved.
-//
-// Helper functions for copying parameters and packaging the buffer
-// for GetSerialization.
+// GEWIS, 2020-2023
+// 
+// Previous work by: 
+// - Microsoft Corporation, 2016
+// This code is based on https://github.com/microsoft/Windows-classic-samples/tree/main/Samples/Win7Samples/security/credentialproviders/samplecredentialprovider
+// 
 
 
 #include "helpers.h"
 #include <intsafe.h>
-#include <wincred.h>
+#include <tlhelp32.h>
 
-// 
-// Copies the field descriptor pointed to by rcpfd into a buffer allocated 
+//
+// Copies the field descriptor pointed to by rcpfd into a buffer allocated
 // using CoTaskMemAlloc. Returns that buffer in ppcpfd.
-// 
+//
 HRESULT FieldDescriptorCoAllocCopy(
-    __in const CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR& rcpfd,
-    __deref_out CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR** ppcpfd
-    )
+    _In_ const CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR& rcpfd,
+    _Outptr_result_nullonfailure_ CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR** ppcpfd
+)
 {
     HRESULT hr;
+    *ppcpfd = nullptr;
     DWORD cbStruct = sizeof(**ppcpfd);
 
     CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR* pcpfd = (CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR*)CoTaskMemAlloc(cbStruct);
@@ -31,6 +29,7 @@ HRESULT FieldDescriptorCoAllocCopy(
     {
         pcpfd->dwFieldID = rcpfd.dwFieldID;
         pcpfd->cpft = rcpfd.cpft;
+        pcpfd->guidFieldType = rcpfd.guidFieldType;
 
         if (rcpfd.pszLabel)
         {
@@ -38,7 +37,7 @@ HRESULT FieldDescriptorCoAllocCopy(
         }
         else
         {
-            pcpfd->pszLabel = NULL;
+            pcpfd->pszLabel = nullptr;
             hr = S_OK;
         }
     }
@@ -53,8 +52,7 @@ HRESULT FieldDescriptorCoAllocCopy(
     }
     else
     {
-        CoTaskMemFree(pcpfd);  
-        *ppcpfd = NULL;
+        CoTaskMemFree(pcpfd);
     }
 
     return hr;
@@ -62,19 +60,20 @@ HRESULT FieldDescriptorCoAllocCopy(
 
 //
 // Coppies rcpfd into the buffer pointed to by pcpfd. The caller is responsible for
-// allocating pcpfd. This function uses CoTaskMemAlloc to allocate memory for 
+// allocating pcpfd. This function uses CoTaskMemAlloc to allocate memory for
 // pcpfd->pszLabel.
 //
 HRESULT FieldDescriptorCopy(
-    __in const CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR& rcpfd,
-    __deref_out CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR* pcpfd
-    )
+    _In_ const CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR& rcpfd,
+    _Out_ CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR* pcpfd
+)
 {
     HRESULT hr;
     CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR cpfd;
 
     cpfd.dwFieldID = rcpfd.dwFieldID;
     cpfd.cpft = rcpfd.cpft;
+    cpfd.guidFieldType = rcpfd.guidFieldType;
 
     if (rcpfd.pszLabel)
     {
@@ -82,7 +81,7 @@ HRESULT FieldDescriptorCopy(
     }
     else
     {
-        cpfd.pszLabel = NULL;
+        cpfd.pszLabel = nullptr;
         hr = S_OK;
     }
 
@@ -102,20 +101,20 @@ HRESULT FieldDescriptorCopy(
 // exact GetSerialization call where the sample uses it.
 //
 HRESULT UnicodeStringInitWithString(
-    __in PWSTR pwz,
-    __deref_out UNICODE_STRING* pus
-    )
+    _In_ PWSTR pwz,
+    _Out_ UNICODE_STRING* pus
+)
 {
     HRESULT hr;
     if (pwz)
     {
-        size_t lenString = lstrlen(pwz);
+        size_t lenString = wcslen(pwz);
         USHORT usCharCount;
         hr = SizeTToUShort(lenString, &usCharCount);
         if (SUCCEEDED(hr))
         {
             USHORT usSize;
-            hr = SizeTToUShort(sizeof(WCHAR), &usSize);
+            hr = SizeTToUShort(sizeof(wchar_t), &usSize);
             if (SUCCEEDED(hr))
             {
                 hr = UShortMult(usCharCount, usSize, &(pus->Length)); // Explicitly NOT including NULL terminator
@@ -141,7 +140,7 @@ HRESULT UnicodeStringInitWithString(
 
 //
 // The following function is intended to be used ONLY with the Kerb*Pack functions.  It does
-// no bounds-checking because its callers have precise requirements and are written to respect 
+// no bounds-checking because its callers have precise requirements and are written to respect
 // its limitations.
 // You can read more about the UNICODE_STRING type at:
 // http://msdn.microsoft.com/library/default.asp?url=/library/en-us/secauthn/security/unicode_string.asp
@@ -150,7 +149,7 @@ static void _UnicodeStringPackedUnicodeStringCopy(
     __in const UNICODE_STRING& rus,
     __in PWSTR pwzBuffer,
     __out UNICODE_STRING* pus
-    )
+)
 {
     pus->Length = rus.Length;
     pus->MaximumLength = rus.Length;
@@ -162,19 +161,19 @@ static void _UnicodeStringPackedUnicodeStringCopy(
 //
 // Initialize the members of a KERB_INTERACTIVE_UNLOCK_LOGON with weak references to the
 // passed-in strings.  This is useful if you will later use KerbInteractiveUnlockLogonPack
-// to serialize the structure.  
+// to serialize the structure.
 //
 // The password is stored in encrypted form for CPUS_LOGON and CPUS_UNLOCK_WORKSTATION
 // because the system can accept encrypted credentials.  It is not encrypted in CPUS_CREDUI
 // because we cannot know whether our caller can accept encrypted credentials.
 //
 HRESULT KerbInteractiveUnlockLogonInit(
-    __in PWSTR pwzDomain,
-    __in PWSTR pwzUsername,
-    __in PWSTR pwzPassword,
-    __in CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus,
-    __out KERB_INTERACTIVE_UNLOCK_LOGON* pkiul
-    )
+    _In_ PWSTR pwzDomain,
+    _In_ PWSTR pwzUsername,
+    _In_ PWSTR pwzPassword,
+    _In_ CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus,
+    _Out_ KERB_INTERACTIVE_UNLOCK_LOGON* pkiul
+)
 {
     KERB_INTERACTIVE_UNLOCK_LOGON kiul;
     ZeroMemory(&kiul, sizeof(kiul));
@@ -185,9 +184,9 @@ HRESULT KerbInteractiveUnlockLogonInit(
     // serialized credential.  We could replace the calls to UnicodeStringInitWithString
     // and KerbInteractiveUnlockLogonPack with a single cal to CredPackAuthenticationBuffer,
     // but that API has a drawback: it returns a KERB_INTERACTIVE_UNLOCK_LOGON whose
-    // MessageType is always KerbInteractiveLogon.  
+    // MessageType is always KerbInteractiveLogon.
     //
-    // If we only handled CPUS_LOGON, this drawback would not be a problem.  For 
+    // If we only handled CPUS_LOGON, this drawback would not be a problem.  For
     // CPUS_UNLOCK_WORKSTATION, we could cast the output buffer of CredPackAuthenticationBuffer
     // to KERB_INTERACTIVE_UNLOCK_LOGON and modify the MessageType to KerbWorkstationUnlockLogon,
     // but such a cast would be unsupported -- the output format of CredPackAuthenticationBuffer
@@ -243,7 +242,7 @@ HRESULT KerbInteractiveUnlockLogonInit(
 // WinLogon and LSA consume "packed" KERB_INTERACTIVE_UNLOCK_LOGONs.  In these, the PWSTR members of each
 // UNICODE_STRING are not actually pointers but byte offsets into the overall buffer represented
 // by the packed KERB_INTERACTIVE_UNLOCK_LOGON.  For example:
-// 
+//
 // rkiulIn.Logon.LogonDomainName.Length = 14                                    -> Length is in bytes, not characters
 // rkiulIn.Logon.LogonDomainName.Buffer = sizeof(KERB_INTERACTIVE_UNLOCK_LOGON) -> LogonDomainName begins immediately
 //                                                                              after the KERB_... struct in the buffer
@@ -252,16 +251,16 @@ HRESULT KerbInteractiveUnlockLogonInit(
 //
 // rkiulIn.Logon.Password.Length = 16
 // rkiulIn.Logon.Password.Buffer = sizeof(KERB_INTERACTIVE_UNLOCK_LOGON) + 14 + 10
-// 
+//
 // THere's more information on this at:
 // http://msdn.microsoft.com/msdnmag/issues/05/06/SecurityBriefs/#void
 //
 
 HRESULT KerbInteractiveUnlockLogonPack(
-    __in const KERB_INTERACTIVE_UNLOCK_LOGON& rkiulIn,
-    __deref_out_bcount(*pcb) BYTE** prgb,
-    __out DWORD* pcb
-    )
+    _In_ const KERB_INTERACTIVE_UNLOCK_LOGON& rkiulIn,
+    _Outptr_result_bytebuffer_(*pcb) BYTE** prgb,
+    _Out_ DWORD* pcb
+)
 {
     HRESULT hr;
 
@@ -319,23 +318,23 @@ HRESULT KerbInteractiveUnlockLogonPack(
     return hr;
 }
 
-// 
+//
 // This function packs the string pszSourceString in pszDestinationString
 // for use with LSA functions including LsaLookupAuthenticationPackage.
 //
 static HRESULT _LsaInitString(
-    __out PSTRING pszDestinationString, 
+    __out PSTRING pszDestinationString,
     __in PCSTR pszSourceString
-    )
+)
 {
-    size_t cchLength = lstrlenA(pszSourceString);
+    size_t cchLength = strlen(pszSourceString);
     USHORT usLength;
     HRESULT hr = SizeTToUShort(cchLength, &usLength);
     if (SUCCEEDED(hr))
     {
         pszDestinationString->Buffer = (PCHAR)pszSourceString;
         pszDestinationString->Length = usLength;
-        pszDestinationString->MaximumLength = pszDestinationString->Length+1;
+        pszDestinationString->MaximumLength = pszDestinationString->Length + 1;
         hr = S_OK;
     }
     return hr;
@@ -346,7 +345,7 @@ static HRESULT _LsaInitString(
 // For more information on auth packages see this msdn page:
 // http://msdn.microsoft.com/library/default.asp?url=/library/en-us/secauthn/security/msv1_0_lm20_logon.asp
 //
-HRESULT RetrieveNegotiateAuthPackage(__out ULONG *pulAuthPackage)
+HRESULT RetrieveNegotiateAuthPackage(_Out_ ULONG* pulAuthPackage)
 {
     HRESULT hr;
     HANDLE hLsa;
@@ -384,14 +383,14 @@ HRESULT RetrieveNegotiateAuthPackage(__out ULONG *pulAuthPackage)
 // pwzToProtect must not be NULL or the empty string.
 //
 static HRESULT _ProtectAndCopyString(
-    __in PCWSTR pwzToProtect, 
-    __deref_out PWSTR* ppwzProtected
-    )
+    _In_ PCWSTR pwzToProtect,
+    _Outptr_result_nullonfailure_ PWSTR* ppwzProtected
+)
 {
-    *ppwzProtected = NULL;
+    *ppwzProtected = nullptr;
 
     // pwzToProtect is const, but CredProtect takes a non-const string.
-    // So, ake a copy that we know isn't const.
+    // So, make a copy that we know isn't const.
     PWSTR pwzToProtectCopy;
     HRESULT hr = SHStrDupW(pwzToProtect, &pwzToProtectCopy);
     if (SUCCEEDED(hr))
@@ -402,18 +401,18 @@ static HRESULT _ProtectAndCopyString(
         // Note that the third parameter to CredProtect, the number of characters of pwzToProtectCopy
         // to encrypt, must include the NULL terminator!
         DWORD cchProtected = 0;
-        if (!CredProtectW(FALSE, pwzToProtectCopy, (DWORD)wcslen(pwzToProtectCopy)+1, NULL, &cchProtected, NULL))
+        if (!CredProtectW(FALSE, pwzToProtectCopy, (DWORD)wcslen(pwzToProtectCopy) + 1, nullptr, &cchProtected, nullptr))
         {
             DWORD dwErr = GetLastError();
 
             if ((ERROR_INSUFFICIENT_BUFFER == dwErr) && (0 < cchProtected))
             {
                 // Allocate a buffer long enough for the encrypted string.
-                PWSTR pwzProtected = (PWSTR)CoTaskMemAlloc(cchProtected * sizeof(WCHAR));
+                PWSTR pwzProtected = (PWSTR)CoTaskMemAlloc(cchProtected * sizeof(wchar_t));
                 if (pwzProtected)
                 {
                     // The second call to CredProtect actually encrypts the string.
-                    if (CredProtectW(FALSE, pwzToProtectCopy, (DWORD)wcslen(pwzToProtectCopy)+1, pwzProtected, &cchProtected, NULL))
+                    if (CredProtectW(FALSE, pwzToProtectCopy, (DWORD)wcslen(pwzToProtectCopy) + 1, pwzProtected, &cchProtected, nullptr))
                     {
                         *ppwzProtected = pwzProtected;
                         hr = S_OK;
@@ -436,6 +435,10 @@ static HRESULT _ProtectAndCopyString(
                 hr = HRESULT_FROM_WIN32(dwErr);
             }
         }
+        else
+        {
+            hr = E_UNEXPECTED;
+        }
 
         CoTaskMemFree(pwzToProtectCopy);
     }
@@ -445,16 +448,16 @@ static HRESULT _ProtectAndCopyString(
 
 //
 // If pwzPassword should be encrypted, return a copy encrypted with CredProtect.
-// 
+//
 // If not, just return a copy.
 //
 HRESULT ProtectIfNecessaryAndCopyPassword(
-    __in PCWSTR pwzPassword,
-    __in CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus,
-    __deref_out PWSTR* ppwzProtectedPassword
-    )
+    _In_ PCWSTR pwzPassword,
+    _In_ CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus,
+    _Outptr_result_nullonfailure_ PWSTR* ppwzProtectedPassword
+)
 {
-    *ppwzProtectedPassword = NULL;
+    *ppwzProtectedPassword = nullptr;
 
     HRESULT hr;
 
@@ -472,11 +475,11 @@ HRESULT ProtectIfNecessaryAndCopyPassword(
             CRED_PROTECTION_TYPE protectionType;
 
             // If the password is already encrypted, we should not encrypt it again.
-            // An encrypted password may be received through SetSerialization in the 
+            // An encrypted password may be received through SetSerialization in the
             // CPUS_LOGON scenario during a Terminal Services connection, for instance.
             if (CredIsProtectedW(pwzPasswordCopy, &protectionType))
             {
-                if(CredUnprotected != protectionType)
+                if (CredUnprotected != protectionType)
                 {
                     bCredAlreadyEncrypted = true;
                 }
@@ -492,7 +495,7 @@ HRESULT ProtectIfNecessaryAndCopyPassword(
             {
                 hr = _ProtectAndCopyString(pwzPasswordCopy, ppwzProtectedPassword);
             }
-            
+
             CoTaskMemFree(pwzPasswordCopy);
         }
     }
@@ -506,13 +509,13 @@ HRESULT ProtectIfNecessaryAndCopyPassword(
 
 //
 // Unpack a KERB_INTERACTIVE_UNLOCK_LOGON *in place*.  That is, reset the Buffers from being offsets to
-// being real pointers.  This means, of course, that passing the resultant struct across any sort of 
+// being real pointers.  This means, of course, that passing the resultant struct across any sort of
 // memory space boundary is not going to work -- repack it if necessary!
 //
 void KerbInteractiveUnlockLogonUnpackInPlace(
-    __inout_bcount(cb) KERB_INTERACTIVE_UNLOCK_LOGON* pkiul,
-    __in DWORD cb
-    )
+    _Inout_updates_bytes_(cb) KERB_INTERACTIVE_UNLOCK_LOGON* pkiul,
+    DWORD cb
+)
 {
     if (sizeof(*pkiul) <= cb)
     {
@@ -526,15 +529,15 @@ void KerbInteractiveUnlockLogonUnpackInPlace(
         {
             pkil->LogonDomainName.Buffer = pkil->LogonDomainName.Buffer
                 ? (PWSTR)((BYTE*)pkiul + (ULONG_PTR)pkil->LogonDomainName.Buffer)
-                : NULL;
+                : nullptr;
 
             pkil->UserName.Buffer = pkil->UserName.Buffer
                 ? (PWSTR)((BYTE*)pkiul + (ULONG_PTR)pkil->UserName.Buffer)
-                : NULL;
+                : nullptr;
 
-            pkil->Password.Buffer = pkil->Password.Buffer 
+            pkil->Password.Buffer = pkil->Password.Buffer
                 ? (PWSTR)((BYTE*)pkiul + (ULONG_PTR)pkil->Password.Buffer)
-                : NULL;
+                : nullptr;
         }
     }
 }
@@ -544,31 +547,32 @@ void KerbInteractiveUnlockLogonUnpackInPlace(
 // cred blob into a 64 bit native blob by unpacking it and immediately repacking it.
 //
 HRESULT KerbInteractiveUnlockLogonRepackNative(
-    __in_bcount(cbWow) BYTE* rgbWow,
-    __in DWORD cbWow,
-    __deref_out_bcount(*pcbNative) BYTE** prgbNative,
-    __out DWORD* pcbNative)
+    _In_reads_bytes_(cbWow) BYTE* rgbWow,
+    _In_ DWORD cbWow,
+    _Outptr_result_bytebuffer_(*pcbNative) BYTE** prgbNative,
+    _Out_ DWORD* pcbNative
+)
 {
     HRESULT hr = E_OUTOFMEMORY;
-    PWSTR pszDomainUsername = NULL;
+    PWSTR pszDomainUsername = nullptr;
     DWORD cchDomainUsername = 0;
-    PWSTR pszPassword = NULL;
+    PWSTR pszPassword = nullptr;
     DWORD cchPassword = 0;
 
-    *prgbNative = NULL;
+    *prgbNative = nullptr;
     *pcbNative = 0;
 
     // Unpack the 32 bit KERB structure
-    CredUnPackAuthenticationBufferW(CRED_PACK_WOW_BUFFER, rgbWow, cbWow, pszDomainUsername, &cchDomainUsername, NULL, NULL, pszPassword, &cchPassword);
+    CredUnPackAuthenticationBufferW(CRED_PACK_WOW_BUFFER, rgbWow, cbWow, pszDomainUsername, &cchDomainUsername, nullptr, nullptr, pszPassword, &cchPassword);
     if (ERROR_INSUFFICIENT_BUFFER == GetLastError())
     {
-        pszDomainUsername = (PWSTR) LocalAlloc(0, cchDomainUsername * sizeof(WCHAR));
+        pszDomainUsername = (PWSTR)LocalAlloc(0, cchDomainUsername * sizeof(wchar_t));
         if (pszDomainUsername)
         {
-            pszPassword = (PWSTR) LocalAlloc(0, cchPassword * sizeof(WCHAR));
+            pszPassword = (PWSTR)LocalAlloc(0, cchPassword * sizeof(wchar_t));
             if (pszPassword)
             {
-                if (CredUnPackAuthenticationBufferW(CRED_PACK_WOW_BUFFER, rgbWow, cbWow, pszDomainUsername, &cchDomainUsername, NULL, NULL, pszPassword, &cchPassword))
+                if (CredUnPackAuthenticationBufferW(CRED_PACK_WOW_BUFFER, rgbWow, cbWow, pszDomainUsername, &cchDomainUsername, nullptr, nullptr, pszPassword, &cchPassword))
                 {
                     hr = S_OK;
                 }
@@ -587,7 +591,7 @@ HRESULT KerbInteractiveUnlockLogonRepackNative(
         CredPackAuthenticationBufferW(0, pszDomainUsername, pszPassword, *prgbNative, pcbNative);
         if (ERROR_INSUFFICIENT_BUFFER == GetLastError())
         {
-            *prgbNative = (BYTE*) LocalAlloc(LMEM_ZEROINIT, *pcbNative);
+            *prgbNative = (BYTE*)LocalAlloc(LMEM_ZEROINIT, *pcbNative);
             if (*prgbNative)
             {
                 if (CredPackAuthenticationBufferW(0, pszDomainUsername, pszPassword, *prgbNative, pcbNative))
@@ -605,7 +609,7 @@ HRESULT KerbInteractiveUnlockLogonRepackNative(
     LocalFree(pszDomainUsername);
     if (pszPassword)
     {
-        SecureZeroMemory(pszPassword, cchPassword * sizeof(WCHAR));
+        SecureZeroMemory(pszPassword, cchPassword * sizeof(wchar_t));
         LocalFree(pszPassword);
     }
     return hr;
@@ -613,16 +617,17 @@ HRESULT KerbInteractiveUnlockLogonRepackNative(
 
 // Concatonates pwszDomain and pwszUsername and places the result in *ppwszDomainUsername.
 HRESULT DomainUsernameStringAlloc(
-    __in PCWSTR pwszDomain,
-    __in PCWSTR pwszUsername,
-    __deref_out PWSTR* ppwszDomainUsername
-    )
+    _In_ PCWSTR pwszDomain,
+    _In_ PCWSTR pwszUsername,
+    _Outptr_result_nullonfailure_ PWSTR* ppwszDomainUsername
+)
 {
     HRESULT hr;
-    size_t cchDomain = lstrlen(pwszDomain);
-    size_t cchUsername = lstrlen(pwszUsername);
-    // Length of domain, 1 character for '\', length of Username, plus null terminator. 
-    size_t cbLen = sizeof(WCHAR) * (cchDomain + 1 + cchUsername +1);
+    *ppwszDomainUsername = nullptr;
+    size_t cchDomain = wcslen(pwszDomain);
+    size_t cchUsername = wcslen(pwszUsername);
+    // Length of domain, 1 character for '\', length of Username, plus null terminator.
+    size_t cbLen = sizeof(wchar_t) * (cchDomain + 1 + cchUsername + 1);
     PWSTR pwszDest = (PWSTR)HeapAlloc(GetProcessHeap(), 0, cbLen);
     if (pwszDest)
     {
@@ -642,4 +647,182 @@ HRESULT DomainUsernameStringAlloc(
     }
 
     return hr;
+}
+
+// https://cplusplus.com/reference/cwchar/wcsncpy/
+HRESULT SplitDomainAndUsername(_In_ PCWSTR pszQualifiedUserName, _Outptr_result_nullonfailure_ PWSTR* ppszDomain, _Outptr_result_nullonfailure_ PWSTR* ppszUsername)
+{
+    HRESULT hr = E_UNEXPECTED;
+    *ppszDomain = nullptr;
+    *ppszUsername = nullptr;
+    PWSTR pszDomain;
+    PWSTR pszUsername;
+    const wchar_t* pchWhack = wcschr(pszQualifiedUserName, L'\\');
+    const wchar_t* pchEnd = pszQualifiedUserName + wcslen(pszQualifiedUserName) - 1;
+
+    if (pchWhack != nullptr)
+    { //We have found a backslash, so there is a domain
+        const wchar_t* pchDomainBegin = pszQualifiedUserName;
+        const wchar_t* pchDomainEnd = pchWhack - 1;
+        const wchar_t* pchUsernameBegin = pchWhack + 1;
+        const wchar_t* pchUsernameEnd = pchEnd;
+
+        size_t lenDomain = pchDomainEnd - pchDomainBegin + 1; // number of actual chars, NOT INCLUDING null terminated string
+        pszDomain = static_cast<PWSTR>(CoTaskMemAlloc(sizeof(wchar_t) * (lenDomain + 1)));
+        if (pszDomain != nullptr)
+        {
+            hr = StringCchCopyN(pszDomain, lenDomain + 1, pchDomainBegin, lenDomain);
+            if (SUCCEEDED(hr))
+            {
+                size_t lenUsername = pchUsernameEnd - pchUsernameBegin + 1; // number of actual chars, NOT INCLUDING null terminated string
+                pszUsername = static_cast<PWSTR>(CoTaskMemAlloc(sizeof(wchar_t) * (lenUsername + 1)));
+                if (pszUsername != nullptr)
+                {
+                    hr = StringCchCopyN(pszUsername, lenUsername + 1, pchUsernameBegin, lenUsername);
+                    if (SUCCEEDED(hr))
+                    {
+                        *ppszDomain = pszDomain;
+                        *ppszUsername = pszUsername;
+                    }
+                    else
+                    {
+                        CoTaskMemFree(pszUsername);
+                    }
+                }
+                else
+                {
+                    hr = E_OUTOFMEMORY;
+                }
+            }
+
+            if (FAILED(hr))
+            {
+                CoTaskMemFree(pszDomain);
+            }
+        }
+        else
+        {
+            hr = E_OUTOFMEMORY;
+        }
+    }
+    else
+    {
+        // Default domain that is used but only in exceptional cases (e.g. when the current user does not have a domain)
+        // which should not happen according to https://learn.microsoft.com/en-us/windows/win32/api/credentialprovider/nf-credentialprovider-icredentialprovideruser-getstringvalue
+        PWSTR defaultDomain = L"GEWISWG\\";
+        size_t newUsernameLength = (wcslen(pszQualifiedUserName) + 1 + wcslen(defaultDomain));
+        PWSTR newUsername = static_cast<PWSTR>(CoTaskMemAlloc(sizeof(wchar_t) * newUsernameLength));
+        if (newUsername != nullptr)
+        {
+            ZeroMemory(newUsername, sizeof(wchar_t) * newUsernameLength);
+            StringCchCat(newUsername, newUsernameLength, defaultDomain);
+            StringCchCat(newUsername, newUsernameLength, pszQualifiedUserName);
+            return SplitDomainAndUsername(newUsername, ppszDomain, ppszUsername);
+        }
+        else
+        {
+            hr = E_OUTOFMEMORY;
+        }
+        /*
+        pszUsername = static_cast<PWSTR>(CoTaskMemAlloc(sizeof(wchar_t) * (wcslen(pszQualifiedUserName) + 1)));
+        if (pszUsername != nullptr) {
+            hr = StringCchCopyN(pszUsername, wcslen(pszQualifiedUserName) + 1, pszQualifiedUserName, wcslen(pszQualifiedUserName));
+            if (SUCCEEDED(hr))
+            {
+                *ppszDomain = L"TUE";
+                *ppszUsername = pszUsername;
+            }
+            else
+            {
+                hr = E_OUTOFMEMORY;
+            }
+        }
+        else
+        {
+            hr = E_OUTOFMEMORY;
+        }
+        */
+    }
+    return hr;
+}
+
+// Code freely https://stackoverflow.com/a/24646860
+HRESULT FindProcessId(_In_ LPCWSTR processName, _Out_ DWORD* processId)
+{
+    HRESULT hr = E_UNEXPECTED;
+    *processId = 0;
+
+    // strip path
+    //LPCWSTR p = wcsrchr(processName, '\\');
+    //if (p)
+    //    processName = p + 1;
+
+    PROCESSENTRY32 processInfo;
+    processInfo.dwSize = sizeof(processInfo);
+
+    HANDLE processesSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
+    if (processesSnapshot == INVALID_HANDLE_VALUE)
+        return hr;
+
+    Process32First(processesSnapshot, &processInfo);
+    if (!wcscmp(processName, processInfo.szExeFile))
+    {
+        CloseHandle(processesSnapshot);
+        return processInfo.th32ProcessID;
+    }
+
+    while (Process32Next(processesSnapshot, &processInfo))
+    {
+        if (!wcscmp(processName, processInfo.szExeFile))
+        {
+            CloseHandle(processesSnapshot);
+            *processId = processInfo.th32ProcessID;
+            hr = S_OK;
+            return hr;
+        }
+    }
+
+    CloseHandle(processesSnapshot);
+    return hr;
+}
+
+// Get the SID of the authorized group
+// wmic group get name,sid on the local command line will give you the SIDs of local groups
+HRESULT GetAuthorizedGroup(_Out_ ATL::CSid* groupSid)
+{
+    *groupSid = ATL::Sids::PowerUsers();
+    // Check if the registry key for an alternative SID is set and if so, try to find a group matching that SID
+    HKEY key;
+    if (RegOpenKey(HKEY_LOCAL_MACHINE, TEXT("Software\\GEWISUnlock\\"), &key) == ERROR_SUCCESS)
+    {
+        WCHAR value[512];
+        DWORD dataSize = sizeof(value);
+        if (RegQueryValueEx(key, L"AuthorizedGroup_SID", 0, NULL, (LPBYTE)value, &dataSize) == ERROR_SUCCESS &&
+            value != NULL &&
+            wcslen(value) > 0)
+        {
+            //::MessageBox(hwndOwner, value, L"SIDinfo", 0);
+            PSID outSid;
+            ConvertStringSidToSid(value, &outSid);
+            ATL::CSid FoundSid = ATL::CSid((const SID*)outSid);
+
+            // Only replace the Power Users Group if a corresponding SID was found
+            if (wcslen(FoundSid.AccountName()) > 0 &&
+                wcslen(FoundSid.Domain()) > 0)
+                *groupSid = FoundSid;
+
+            LocalFree(outSid);
+        }
+
+        RegCloseKey(key);
+    }
+
+    return S_OK;
+}
+
+bool MultiversRunning()
+{
+    DWORD pIdMulti = 0;
+    FindProcessId(L"notepad.exe", &pIdMulti);
+    return pIdMulti > 0;
 }

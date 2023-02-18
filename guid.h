@@ -1,10 +1,11 @@
 //
-// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-// PARTICULAR PURPOSE.
-//
-// Copyright (c) Microsoft Corporation. All rights reserved.
-//
+// GEWIS, 2020-2023
+// 
+// Previous work by: 
+// - Microsoft Corporation, 2016
+// This code is based on https://github.com/microsoft/Windows-classic-samples/tree/main/Samples/Win7Samples/security/credentialproviders/samplecredentialprovider
+// 
 
-DEFINE_GUID(CLSID_CSample, 0xb986c180, 0x798, 0x4df5, 0xa6, 0x11, 0xa1, 0x99, 0x1a, 0xa8, 0x90, 0xb9);
+// 28061982-4040-4040-4040-e0abaacd4af6
+// Later used in the registry item
+DEFINE_GUID(CLSID_GEWUnlockv2, 0x28061982, 0x4040, 0x4040, 0x40, 0x40, 0xe0, 0xab, 0xaa, 0xcd, 0x4a, 0xf6);

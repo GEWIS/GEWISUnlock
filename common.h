@@ -1,27 +1,28 @@
 //
-// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-// PARTICULAR PURPOSE.
-//
-// Copyright (c) Microsoft Corporation. All rights reserved.
-//
-// This file contains some global variables that describe what our
-// sample tile looks like.  For example, it defines what fields a tile has 
-// and which fields show in which states of LogonUI.
+// GEWIS, 2020-2023
+// 
+// Previous work by: 
+// - Microsoft Corporation, 2016
+// This code is based on https://github.com/microsoft/Windows-classic-samples/tree/main/Samples/Win7Samples/security/credentialproviders/samplecredentialprovider
+// 
 
 #pragma once
 #include "helpers.h"
 
-// The indexes of each of the fields in our credential provider's tiles.
-enum SAMPLE_FIELD_ID 
+// The indexes of each of the fields in our credential provider's tiles. Note that we're
+// using each of the nine available field types here.
+enum GEWISUNLOCK_FIELD_ID
 {
-    SFI_TILEIMAGE       = 0,
-    SFI_USERNAME        = 1,
-	SFI_EDIT_TEXT       = 2,
-    SFI_PASSWORD        = 3,
-    SFI_SUBMIT_BUTTON   = 4, 
-    SFI_NUM_FIELDS      = 5,  // Note: if new fields are added, keep NUM_FIELDS last.  This is used as a count of the number of fields
+    GFI_TILEIMAGE         = 0,
+    GFI_LABEL             = 1,
+    GFI_HEADING           = 2,
+    GFI_USERNAME          = 3,
+    GFI_PASSWORD          = 4,
+    GFI_SUBMIT_BUTTON     = 5,
+    GFI_MOREINFO_LINK     = 6,
+    GFI_MULTIVERS_TEXT    = 7,
+    GFI_MULTIVERS_CHECKBOX= 8,
+    GFI_NUM_FIELDS        = 9,  // Note: if new fields are added, keep NUM_FIELDS last.  This is used as a count of the number of fields
 };
 
 // The first value indicates when the tile is displayed (selected, not selected)
@@ -33,30 +34,44 @@ struct FIELD_STATE_PAIR
 };
 
 // These two arrays are seperate because a credential provider might
-// want to set up a credential with various combinations of field state pairs 
+// want to set up a credential with various combinations of field state pairs
 // and field descriptors.
 
 // The field state value indicates whether the field is displayed
 // in the selected tile, the deselected tile, or both.
-// The Field interactive state indicates when 
-static const FIELD_STATE_PAIR s_rgFieldStatePairs[] = 
+// The Field interactive state indicates when
+static const FIELD_STATE_PAIR s_rgFieldStatePairs[] =
 {
-    { CPFS_DISPLAY_IN_BOTH, CPFIS_NONE },                   // SFI_TILEIMAGE
-    { CPFS_DISPLAY_IN_BOTH, CPFIS_NONE },                   // SFI_USERNAME	
-	{ CPFS_DISPLAY_IN_SELECTED_TILE, CPFIS_FOCUSED },       // SFI_PASSWORD
-    { CPFS_DISPLAY_IN_SELECTED_TILE, CPFIS_NONE },          // SFI_PASSWORD
-    { CPFS_DISPLAY_IN_SELECTED_TILE, CPFIS_NONE    },       // SFI_SUBMIT_BUTTON   
+    { CPFS_DISPLAY_IN_BOTH,            CPFIS_NONE    },    // GFI_TILEIMAGE
+    { CPFS_HIDDEN,                     CPFIS_NONE    },    // GFI_LABEL
+    { CPFS_DISPLAY_IN_BOTH,            CPFIS_NONE    },    // GFI_HEADING
+    { CPFS_DISPLAY_IN_SELECTED_TILE,   CPFIS_FOCUSED },    // GFI_USERNAME
+    { CPFS_DISPLAY_IN_SELECTED_TILE,   CPFIS_NONE    },    // GFI_PASSWORD
+    { CPFS_DISPLAY_IN_SELECTED_TILE,   CPFIS_NONE    },    // GFI_SUBMIT_BUTTON
+    { CPFS_DISPLAY_IN_SELECTED_TILE,   CPFIS_NONE    },    // GFI_MOREINFO_LINK
+    { CPFS_DISPLAY_IN_SELECTED_TILE,   CPFIS_NONE    },    // GFI_MULTIVERS_TEXT
+    { CPFS_DISPLAY_IN_SELECTED_TILE,   CPFIS_NONE    },    // GFI_MULTIVERS_CHECKBOX
 };
 
-// Field descriptors for unlock and logon.
-// The first field is the index of the field.
-// The second is the type of the field.
-// The third is the name of the field, NOT the value which will appear in the field.
+// Field descriptors
+// These look complicated, because they are
+// Docs on https://learn.microsoft.com/en-us/windows/win32/api/credentialprovider/ns-credentialprovider-credential_provider_field_descriptor
 static const CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR s_rgCredProvFieldDescriptors[] =
 {
-    { SFI_TILEIMAGE, CPFT_TILE_IMAGE, L"Image" },
-    { SFI_USERNAME, CPFT_LARGE_TEXT, L"Gebruikersnaam (alleen openhouders)" },	
-	{ SFI_EDIT_TEXT, CPFT_EDIT_TEXT, L"Gebruikersnaam (alleen openhouders)" },
-    { SFI_PASSWORD, CPFT_PASSWORD_TEXT, L"Wachtwoord" },
-    { SFI_SUBMIT_BUTTON, CPFT_SUBMIT_BUTTON, L"Uitloggen" },
+    { GFI_TILEIMAGE,         CPFT_TILE_IMAGE,    L"Image",                      CPFG_CREDENTIAL_PROVIDER_LOGO  },
+    { GFI_LABEL,             CPFT_SMALL_TEXT,    L"Tooltip",                    CPFG_CREDENTIAL_PROVIDER_LABEL },
+    { GFI_HEADING,           CPFT_LARGE_TEXT,    L"Heading"                                                    },
+    { GFI_USERNAME,          CPFT_EDIT_TEXT,     L"Username (room responsible)", CPFG_LOGON_USERNAME           },
+    { GFI_PASSWORD,          CPFT_PASSWORD_TEXT, L"Password (room responsible)", CPFG_LOGON_PASSWORD           },
+    { GFI_SUBMIT_BUTTON,     CPFT_SUBMIT_BUTTON, L"Submit"                                                     },
+    { GFI_MOREINFO_LINK,     CPFT_COMMAND_LINK,  L"About GEWISUnlock"                                          },
+    { GFI_MULTIVERS_TEXT,    CPFT_SMALL_TEXT,    L"Multivers status: "                                         },
+    { GFI_MULTIVERS_CHECKBOX,CPFT_CHECKBOX,      L"Multivers checkbox: "                                       },
+};
+
+static const PWSTR s_rgComboBoxStrings[] =
+{
+    L"First",
+    L"Second",
+    L"Third",
 };
