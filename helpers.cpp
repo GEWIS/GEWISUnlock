@@ -823,6 +823,6 @@ HRESULT GetAuthorizedGroup(_Out_ ATL::CSid* groupSid)
 bool MultiversRunning()
 {
     DWORD pIdMulti = 0;
-    FindProcessId(L"notepad.exe", &pIdMulti);
+    FindProcessId(L"Multi.exe", &pIdMulti);
     return pIdMulti > 0;
 }
