@@ -540,7 +540,6 @@ HRESULT GEWISUnlockCredential::GetSerialization(_Out_ CREDENTIAL_PROVIDER_GET_SE
                 }
                 else
                 {
-                    ::MessageBox(hwndOwner, L"You are another user", L"Debug info", 0);
                     // We use a login session to verify the user before passing on serialization so we can also use another account
                     ATL::CAccessToken aToken;
 
@@ -632,77 +631,6 @@ HRESULT GEWISUnlockCredential::GetSerialization(_Out_ CREDENTIAL_PROVIDER_GET_SE
 
         ::MessageBox(hwndOwner, L"This tile was never meant to be associated with a non-local user tile", L"An error has occured", 0);
 
-        /*
-        // We use a login session to verify the user before passing on serialization so we can also use another account
-        ATL::CAccessToken aToken;
-
-        PWSTR pwzProtectedPassword;
-        hr = ProtectIfNecessaryAndCopyPassword(_rgFieldStrings[GFI_PASSWORD], _cpus, &pwzProtectedPassword);
-        if (SUCCEEDED(hr))
-        {
-            ::MessageBox(hwndOwner, L"Got here.", L"Fout bij aanmelding", 0);
-            PWSTR pszDomain;
-            PWSTR pszUsername;
-            hr = SplitDomainAndUsername(_rgFieldStrings[GFI_USERNAME], &pszDomain, &pszUsername);
-            if (SUCCEEDED(hr))
-            {
-                if (!aToken.LogonUserW(pszUsername, pszUsername, pwzProtectedPassword, LOGON32_LOGON_NETWORK, LOGON32_PROVIDER_DEFAULT))
-                {
-                    ::MessageBox(hwndOwner, L"De opgegeven gebuikersgegevens zijn onjuist.", L"Fout bij aanmelding", 0);
-                    *pcpgsr = CPGSR_NO_CREDENTIAL_FINISHED;
-                    return (HRESULT(E_ACCESSDENIED));
-                }
-            }
-        }
-
-        // First get the size of the authentication buffer to allocate
-        //if (!CredPackAuthenticationBuffer(dwAuthFlags, _pszQualifiedUserName, const_cast<PWSTR>(_rgFieldStrings[GFI_PASSWORD]), nullptr, &pcpcs->cbSerialization) &&
-        if (!CredPackAuthenticationBuffer(dwAuthFlags, _rgFieldStrings[GFI_USERNAME], const_cast<PWSTR>(_rgFieldStrings[GFI_PASSWORD]), nullptr, &pcpcs->cbSerialization) &&
-            (GetLastError() == ERROR_INSUFFICIENT_BUFFER))
-        {
-            pcpcs->rgbSerialization = static_cast<byte *>(CoTaskMemAlloc(pcpcs->cbSerialization));
-            if (pcpcs->rgbSerialization != nullptr)
-            {
-                hr = S_OK;
-
-                // Retrieve the authentication buffer
-                if (CredPackAuthenticationBuffer(dwAuthFlags, _rgFieldStrings[GFI_USERNAME], const_cast<PWSTR>(_rgFieldStrings[GFI_PASSWORD]), pcpcs->rgbSerialization, &pcpcs->cbSerialization))
-                {
-                    ULONG ulAuthPackage;
-                    hr = RetrieveNegotiateAuthPackage(&ulAuthPackage);
-                    if (SUCCEEDED(hr))
-                    {
-                        pcpcs->ulAuthenticationPackage = ulAuthPackage;
-                        pcpcs->clsidCredentialProvider = CLSID_GEWUnlockv2;
-
-                        // At this point the credential has created the serialized credential used for logon
-                        // By setting this to CPGSR_RETURN_CREDENTIAL_FINISHED we are letting logonUI know
-                        // that we have all the information we need and it should attempt to submit the
-                        // serialized credential.
-                        *pcpgsr = CPGSR_RETURN_CREDENTIAL_FINISHED;
-                    }
-                }
-                else
-                {
-                    hr = HRESULT_FROM_WIN32(GetLastError());
-                    if (SUCCEEDED(hr))
-                    {
-                        hr = E_FAIL;
-                    }
-                }
-
-                if (FAILED(hr))
-                {
-                    CoTaskMemFree(pcpcs->rgbSerialization);
-                }
-            }
-            else
-            {
-                hr = E_OUTOFMEMORY;
-            }
-        }
-
-        */
     }
     return hr;
 }
